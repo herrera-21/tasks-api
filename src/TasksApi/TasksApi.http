@@ -1,6 +1,49 @@
 @TasksApi_HostAddress = http://localhost:5233
 
+### Listar todas las tareas (200, lista vacía si no hay)
 GET {{TasksApi_HostAddress}}/api/tasks
 Accept: application/json
+
+### Obtener una tarea por id (200 si existe)
+GET {{TasksApi_HostAddress}}/api/tasks/1
+Accept: application/json
+
+### Tarea que no existe (404 con ProblemDetails)
+GET {{TasksApi_HostAddress}}/api/tasks/9999
+Accept: application/json
+
+### Crear una tarea (201 + header Location)
+POST {{TasksApi_HostAddress}}/api/tasks
+Content-Type: application/json
+
+{
+  "title": "Comprar leche",
+  "description": "Dos litros"
+}
+
+### Actualizar una tarea (200 si existe)
+PUT {{TasksApi_HostAddress}}/api/tasks/1
+Content-Type: application/json
+
+{
+  "title": "Comprar leche deslactosada",
+  "description": "Dos litros",
+  "isCompleted": true
+}
+
+### Actualizar una tarea que no existe (404)
+PUT {{TasksApi_HostAddress}}/api/tasks/9999
+Content-Type: application/json
+
+{
+  "title": "No existe",
+  "isCompleted": false
+}
+
+### Borrar una tarea (204 si existe)
+DELETE {{TasksApi_HostAddress}}/api/tasks/1
+
+### Borrar una tarea que no existe (404)
+DELETE {{TasksApi_HostAddress}}/api/tasks/9999
 
 ###
