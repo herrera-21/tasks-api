@@ -42,7 +42,7 @@ public class TaskService(ITaskRepository repository) : ITaskService
 
         task.Title = request.Title.Trim();
         task.Description = CleanDescription(request.Description);
-        task.IsCompleted = request.IsCompleted;
+        task.IsCompleted = request.IsCompleted ?? false; // La validación ya exige que venga.
         task.UpdatedAt = DateTime.UtcNow;
 
         await repository.UpdateAsync(task, cancellationToken);

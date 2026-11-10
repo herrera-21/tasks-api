@@ -1,18 +1,18 @@
 @TasksApi_HostAddress = http://localhost:5233
 
-### Listar todas las tareas (200, lista vacía si no hay)
-GET {{TasksApi_HostAddress}}/api/tasks
-Accept: application/json
+# Cómo usar este archivo:
+# 1. Levanta la API:  dotnet run --project src/TasksApi --launch-profile http
+# 2. Ejecuta primero "Crear una tarea". Las peticiones siguientes usan el id
+#    que devolvió esa respuesta ({{createTask.response.body.$.id}}),
+#    así que no hace falta cambiar ids a mano.
+# 3. Si borras la tarea, vuelve a ejecutar "Crear una tarea" antes de seguir.
 
-### Obtener una tarea por id (200 si existe)
-GET {{TasksApi_HostAddress}}/api/tasks/1
-Accept: application/json
-
-### Tarea que no existe (404 con ProblemDetails)
-GET {{TasksApi_HostAddress}}/api/tasks/9999
-Accept: application/json
+# ---------------------------------------------------------------
+# Flujo normal (CRUD)
+# ---------------------------------------------------------------
 
 ### Crear una tarea (201 + header Location)
+# @name createTask
 POST {{TasksApi_HostAddress}}/api/tasks
 Content-Type: application/json
 
@@ -21,8 +21,16 @@ Content-Type: application/json
   "description": "Dos litros"
 }
 
-### Actualizar una tarea (200 si existe)
-PUT {{TasksApi_HostAddress}}/api/tasks/1
+### Listar todas las tareas (200, lista vacía si no hay)
+GET {{TasksApi_HostAddress}}/api/tasks
+Accept: application/json
+
+### Obtener la tarea creada (200)
+GET {{TasksApi_HostAddress}}/api/tasks/{{createTask.response.body.$.id}}
+Accept: application/json
+
+### Actualizar la tarea creada (200)
+PUT {{TasksApi_HostAddress}}/api/tasks/{{createTask.response.body.$.id}}
 Content-Type: application/json
 
 {
@@ -30,6 +38,17 @@ Content-Type: application/json
   "description": "Dos litros",
   "isCompleted": true
 }
+
+### Borrar la tarea creada (204; si se repite, 404)
+DELETE {{TasksApi_HostAddress}}/api/tasks/{{createTask.response.body.$.id}}
+
+# ---------------------------------------------------------------
+# Tareas que no existen (404 con ProblemDetails)
+# ---------------------------------------------------------------
+
+### Obtener una tarea que no existe (404)
+GET {{TasksApi_HostAddress}}/api/tasks/9999
+Accept: application/json
 
 ### Actualizar una tarea que no existe (404)
 PUT {{TasksApi_HostAddress}}/api/tasks/9999
@@ -40,10 +59,62 @@ Content-Type: application/json
   "isCompleted": false
 }
 
-### Borrar una tarea (204 si existe)
-DELETE {{TasksApi_HostAddress}}/api/tasks/1
-
 ### Borrar una tarea que no existe (404)
 DELETE {{TasksApi_HostAddress}}/api/tasks/9999
+
+# ---------------------------------------------------------------
+# Datos inválidos (400 con ValidationProblemDetails)
+# No dependen de ninguna tarea existente.
+# ---------------------------------------------------------------
+
+### Crear sin título (400, errors.Title)
+POST {{TasksApi_HostAddress}}/api/tasks
+Content-Type: application/json
+
+{
+  "description": "Sin título"
+}
+
+### Crear con título de solo espacios (400, errors.Title)
+POST {{TasksApi_HostAddress}}/api/tasks
+Content-Type: application/json
+
+{
+  "title": "   "
+}
+
+### Crear con título de más de 200 caracteres (400, errors.Title)
+POST {{TasksApi_HostAddress}}/api/tasks
+Content-Type: application/json
+
+{
+  "title": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+}
+
+### Crear con JSON mal escrito (400, falta la llave de cierre)
+POST {{TasksApi_HostAddress}}/api/tasks
+Content-Type: application/json
+
+{
+  "title": "JSON roto"
+
+### Actualizar sin isCompleted (400, errors.IsCompleted)
+# La validación ocurre antes de buscar la tarea, por eso el id da igual.
+PUT {{TasksApi_HostAddress}}/api/tasks/9999
+Content-Type: application/json
+
+{
+  "title": "Falta el estado"
+}
+
+# ---------------------------------------------------------------
+# Rutas y métodos inválidos (ProblemDetails)
+# ---------------------------------------------------------------
+
+### Ruta con id que no es número (404)
+GET {{TasksApi_HostAddress}}/api/tasks/abc
+
+### Método no permitido en la colección (405)
+DELETE {{TasksApi_HostAddress}}/api/tasks
 
 ###
