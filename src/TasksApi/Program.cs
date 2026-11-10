@@ -1,17 +1,22 @@
+using Microsoft.EntityFrameworkCore;
+using TasksApi.Data;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' no está configurada.");
+
+builder.Services.AddDbContext<AppDbContext>(options => options.UseSqlite(connectionString));
 
 builder.Services.AddControllers();
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+// Crea el esquema de la base de datos al iniciar si no existe.
+using (var scope = app.Services.CreateScope())
 {
-    app.MapOpenApi();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    db.Database.EnsureCreated();
 }
 
 app.UseHttpsRedirection();
@@ -21,3 +26,6 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+
+// Expone Program para WebApplicationFactory<Program> en las pruebas de integración.
+public partial class Program { }
