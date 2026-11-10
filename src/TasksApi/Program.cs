@@ -1,6 +1,8 @@
+using System.Reflection;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.OpenApi;
 using TasksApi.Data;
 using TasksApi.Errors;
 using TasksApi.Repositories;
@@ -46,6 +48,22 @@ builder.Services.AddControllers(options =>
         };
     });
 
+// Documentación de la API (Swagger / OpenAPI).
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "Tasks API",
+        Version = "v1",
+        Description = "API REST para gestionar tareas: crear, listar, ver, actualizar y borrar.",
+    });
+
+    // Usa los comentarios /// del código como descripción de cada endpoint y campo.
+    var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    options.IncludeXmlComments(Path.Combine(AppContext.BaseDirectory, xmlFile));
+});
+
 var app = builder.Build();
 
 // Atrapa errores no controlados (500) usando GlobalExceptionHandler.
@@ -60,6 +78,19 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.EnsureCreated();
 }
+
+// Swagger queda activo en todos los ambientes (también dentro del contenedor Docker),
+// para que quien revise la prueba pueda ver y probar la API desde el navegador.
+// JSON: /swagger/v1/swagger.json — Pantalla: /swagger
+app.UseSwagger();
+app.UseSwaggerUI(options =>
+{
+    options.SwaggerEndpoint("/swagger/v1/swagger.json", "Tasks API v1");
+    options.DocumentTitle = "Tasks API - Swagger";
+});
+
+// Entrar a la raíz (/) lleva directo a Swagger.
+app.MapGet("/", () => Results.Redirect("/swagger")).ExcludeFromDescription();
 
 app.UseHttpsRedirection();
 

@@ -9,8 +9,13 @@ namespace TasksApi.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/tasks")]
+[Tags("Tareas")]
+// Cualquier endpoint puede fallar con un error inesperado (500).
+[ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError, "application/problem+json")]
 public class TasksController : ControllerBase
 {
+    private const string ProblemJson = "application/problem+json";
+
     private readonly ITaskService _taskService;
 
     public TasksController(ITaskService taskService)
@@ -19,8 +24,11 @@ public class TasksController : ControllerBase
     }
 
     /// <summary>
-    /// Devuelve todas las tareas. Si no hay ninguna, devuelve una lista vacía.
+    /// Lista todas las tareas.
     /// </summary>
+    /// <remarks>Si no hay ninguna tarea, devuelve una lista vacía (<c>[]</c>).</remarks>
+    /// <param name="cancellationToken">Se cancela si el cliente corta la petición.</param>
+    /// <response code="200">Lista de tareas (puede venir vacía).</response>
     [HttpGet]
     [ProducesResponseType(typeof(IReadOnlyList<TaskResponse>), StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<TaskResponse>>> GetAll(CancellationToken cancellationToken)
@@ -30,12 +38,16 @@ public class TasksController : ControllerBase
     }
 
     /// <summary>
-    /// Devuelve una tarea por su id, o 404 si no existe.
+    /// Obtiene una tarea por su id.
     /// </summary>
+    /// <param name="id">Id de la tarea.</param>
+    /// <param name="cancellationToken">Se cancela si el cliente corta la petición.</param>
+    /// <response code="200">La tarea encontrada.</response>
+    /// <response code="404">No existe una tarea con ese id.</response>
     // ":int" hace que /api/tasks/abc no entre aquí (responde 404 en vez de error).
     [HttpGet("{id:int}")]
     [ProducesResponseType(typeof(TaskResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound, ProblemJson)]
     public async Task<ActionResult<TaskResponse>> GetById(int id, CancellationToken cancellationToken)
     {
         var task = await _taskService.GetByIdAsync(id, cancellationToken);
@@ -49,10 +61,27 @@ public class TasksController : ControllerBase
     }
 
     /// <summary>
-    /// Crea una tarea nueva. Responde 201 con la tarea creada y su dirección en el header Location.
+    /// Crea una tarea nueva.
     /// </summary>
+    /// <remarks>
+    /// La tarea nueva siempre empieza pendiente (<c>isCompleted = false</c>).
+    /// Al título y la descripción se les quitan los espacios sobrantes.
+    ///
+    /// Ejemplo:
+    ///
+    ///     POST /api/tasks
+    ///     {
+    ///       "title": "Comprar café",
+    ///       "description": "Para la oficina"
+    ///     }
+    /// </remarks>
+    /// <param name="request">Datos de la tarea a crear.</param>
+    /// <param name="cancellationToken">Se cancela si el cliente corta la petición.</param>
+    /// <response code="201">Tarea creada. El header Location trae su dirección.</response>
+    /// <response code="400">Los datos no son válidos o el JSON está mal escrito.</response>
     [HttpPost]
     [ProducesResponseType(typeof(TaskResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest, ProblemJson)]
     public async Task<ActionResult<TaskResponse>> Create(CreateTaskRequest request, CancellationToken cancellationToken)
     {
         var created = await _taskService.CreateAsync(request, cancellationToken);
@@ -60,11 +89,31 @@ public class TasksController : ControllerBase
     }
 
     /// <summary>
-    /// Reemplaza los datos de una tarea. Responde 200 con la tarea actualizada, o 404 si no existe.
+    /// Actualiza una tarea (reemplaza todos sus datos).
     /// </summary>
+    /// <remarks>
+    /// Es un reemplazo completo: si no se manda la descripción, queda vacía.
+    /// <c>title</c> e <c>isCompleted</c> son obligatorios.
+    ///
+    /// Ejemplo:
+    ///
+    ///     PUT /api/tasks/1
+    ///     {
+    ///       "title": "Comprar café",
+    ///       "description": "Para la oficina",
+    ///       "isCompleted": true
+    ///     }
+    /// </remarks>
+    /// <param name="id">Id de la tarea.</param>
+    /// <param name="request">Datos nuevos de la tarea.</param>
+    /// <param name="cancellationToken">Se cancela si el cliente corta la petición.</param>
+    /// <response code="200">La tarea ya actualizada.</response>
+    /// <response code="400">Los datos no son válidos o el JSON está mal escrito.</response>
+    /// <response code="404">No existe una tarea con ese id.</response>
     [HttpPut("{id:int}")]
     [ProducesResponseType(typeof(TaskResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest, ProblemJson)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound, ProblemJson)]
     public async Task<ActionResult<TaskResponse>> Update(int id, UpdateTaskRequest request, CancellationToken cancellationToken)
     {
         var updated = await _taskService.UpdateAsync(id, request, cancellationToken);
@@ -78,11 +127,15 @@ public class TasksController : ControllerBase
     }
 
     /// <summary>
-    /// Borra una tarea. Responde 204 sin contenido, o 404 si no existe.
+    /// Borra una tarea.
     /// </summary>
+    /// <param name="id">Id de la tarea.</param>
+    /// <param name="cancellationToken">Se cancela si el cliente corta la petición.</param>
+    /// <response code="204">Tarea borrada (la respuesta no trae contenido).</response>
+    /// <response code="404">No existe una tarea con ese id.</response>
     [HttpDelete("{id:int}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound, ProblemJson)]
     public async Task<IActionResult> Delete(int id, CancellationToken cancellationToken)
     {
         var deleted = await _taskService.DeleteAsync(id, cancellationToken);

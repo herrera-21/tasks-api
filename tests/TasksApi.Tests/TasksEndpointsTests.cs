@@ -185,7 +185,207 @@ public class TasksEndpointsTests : IDisposable
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
+    // ---------- Actualización (PUT) ----------
+
+    [Fact]
+    public async Task Put_ConDatosValidos_Devuelve200ConLaTareaActualizada()
+    {
+        var created = await CreateTaskAsync("Título original", "Descripción original");
+        var request = new UpdateTaskRequest { Title = "  Título nuevo  ", Description = "Descripción nueva", IsCompleted = true };
+
+        var response = await _client.PutAsJsonAsync($"{BaseUrl}/{created.Id}", request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var updated = await response.Content.ReadFromJsonAsync<TaskResponse>();
+        Assert.NotNull(updated);
+        Assert.Equal(created.Id, updated.Id);
+        Assert.Equal("Título nuevo", updated.Title); // Se quitan los espacios sobrantes.
+        Assert.Equal("Descripción nueva", updated.Description);
+        Assert.True(updated.IsCompleted);
+        Assert.Equal(created.CreatedAt, updated.CreatedAt); // La fecha de creación no cambia.
+        Assert.NotNull(updated.UpdatedAt);
+        Assert.Equal(DateTimeKind.Utc, updated.UpdatedAt.Value.Kind);
+    }
+
+    [Fact]
+    public async Task Put_LuegoGetPorId_DevuelveLosCambiosGuardados()
+    {
+        var created = await CreateTaskAsync("Antes");
+        var request = new UpdateTaskRequest { Title = "Después", IsCompleted = true };
+
+        await _client.PutAsJsonAsync($"{BaseUrl}/{created.Id}", request);
+        var fetched = await _client.GetFromJsonAsync<TaskResponse>($"{BaseUrl}/{created.Id}");
+
+        Assert.NotNull(fetched);
+        Assert.Equal("Después", fetched.Title);
+        Assert.True(fetched.IsCompleted);
+        Assert.NotNull(fetched.UpdatedAt);
+        Assert.Equal(DateTimeKind.Utc, fetched.UpdatedAt.Value.Kind); // Sigue en UTC al leerla de la base.
+    }
+
+    [Fact]
+    public async Task Put_SinDescripcion_BorraLaDescripcionAnterior()
+    {
+        // PUT reemplaza todo: si no se manda la descripción, queda vacía (null).
+        var created = await CreateTaskAsync("Con descripción", "Se va a borrar");
+        var request = new UpdateTaskRequest { Title = "Con descripción", IsCompleted = false };
+
+        var response = await _client.PutAsJsonAsync($"{BaseUrl}/{created.Id}", request);
+
+        var updated = await response.Content.ReadFromJsonAsync<TaskResponse>();
+        Assert.NotNull(updated);
+        Assert.Null(updated.Description);
+    }
+
+    [Fact]
+    public async Task Put_PuedeVolverAPendiente()
+    {
+        var created = await CreateTaskAsync("Ida y vuelta");
+        await _client.PutAsJsonAsync($"{BaseUrl}/{created.Id}", new UpdateTaskRequest { Title = "Ida y vuelta", IsCompleted = true });
+
+        var response = await _client.PutAsJsonAsync($"{BaseUrl}/{created.Id}", new UpdateTaskRequest { Title = "Ida y vuelta", IsCompleted = false });
+
+        var updated = await response.Content.ReadFromJsonAsync<TaskResponse>();
+        Assert.NotNull(updated);
+        Assert.False(updated.IsCompleted);
+    }
+
+    [Fact]
+    public async Task Put_Inexistente_Devuelve404ProblemDetails()
+    {
+        var request = new UpdateTaskRequest { Title = "No existe", IsCompleted = false };
+
+        var response = await _client.PutAsJsonAsync($"{BaseUrl}/9999", request);
+
+        await AssertNotFoundProblemAsync(response, 9999);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task Put_ConTituloVacio_Devuelve400ConErrorEnTitle(string title)
+    {
+        var created = await CreateTaskAsync("Válido");
+        var request = new UpdateTaskRequest { Title = title, IsCompleted = false };
+
+        var response = await _client.PutAsJsonAsync($"{BaseUrl}/{created.Id}", request);
+
+        var errors = await AssertValidationProblemAsync(response);
+        Assert.True(errors.TryGetProperty("Title", out _), "Se esperaba un error en el campo Title.");
+    }
+
+    [Fact]
+    public async Task Put_SinIsCompleted_Devuelve400ConErrorEnIsCompleted()
+    {
+        var created = await CreateTaskAsync("Válido");
+
+        // JSON sin el campo isCompleted.
+        var content = new StringContent("""{ "title": "Sin estado" }""", Encoding.UTF8, "application/json");
+        var response = await _client.PutAsync($"{BaseUrl}/{created.Id}", content);
+
+        var errors = await AssertValidationProblemAsync(response);
+        Assert.True(errors.TryGetProperty("IsCompleted", out _), "Se esperaba un error en el campo IsCompleted.");
+    }
+
+    [Fact]
+    public async Task Put_ConTituloDemasiadoLargo_Devuelve400()
+    {
+        var created = await CreateTaskAsync("Válido");
+        var request = new UpdateTaskRequest { Title = new string('a', 201), IsCompleted = false };
+
+        var response = await _client.PutAsJsonAsync($"{BaseUrl}/{created.Id}", request);
+
+        var errors = await AssertValidationProblemAsync(response);
+        Assert.True(errors.TryGetProperty("Title", out _), "Se esperaba un error en el campo Title.");
+    }
+
+    [Fact]
+    public async Task Put_ConDatosInvalidos_NoCambiaLaTarea()
+    {
+        var created = await CreateTaskAsync("Original");
+
+        await _client.PutAsJsonAsync($"{BaseUrl}/{created.Id}", new UpdateTaskRequest { Title = "", IsCompleted = true });
+        var fetched = await _client.GetFromJsonAsync<TaskResponse>($"{BaseUrl}/{created.Id}");
+
+        Assert.NotNull(fetched);
+        Assert.Equal("Original", fetched.Title);
+        Assert.False(fetched.IsCompleted);
+        Assert.Null(fetched.UpdatedAt);
+    }
+
+    // ---------- Borrado (DELETE) ----------
+
+    [Fact]
+    public async Task Delete_Existente_Devuelve204YLuegoGetDevuelve404()
+    {
+        var created = await CreateTaskAsync("Para borrar");
+
+        var deleteResponse = await _client.DeleteAsync($"{BaseUrl}/{created.Id}");
+
+        Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
+        Assert.Empty(await deleteResponse.Content.ReadAsByteArrayAsync()); // 204 no lleva cuerpo.
+
+        var getResponse = await _client.GetAsync($"{BaseUrl}/{created.Id}");
+        await AssertNotFoundProblemAsync(getResponse, created.Id);
+    }
+
+    [Fact]
+    public async Task Delete_SoloBorraLaTareaIndicada()
+    {
+        var toDelete = await CreateTaskAsync("Se borra");
+        var toKeep = await CreateTaskAsync("Se queda");
+
+        await _client.DeleteAsync($"{BaseUrl}/{toDelete.Id}");
+        var tasks = await _client.GetFromJsonAsync<List<TaskResponse>>(BaseUrl);
+
+        Assert.NotNull(tasks);
+        var remaining = Assert.Single(tasks);
+        Assert.Equal(toKeep.Id, remaining.Id);
+    }
+
+    [Fact]
+    public async Task Delete_Inexistente_Devuelve404ProblemDetails()
+    {
+        var response = await _client.DeleteAsync($"{BaseUrl}/9999");
+
+        await AssertNotFoundProblemAsync(response, 9999);
+    }
+
+    [Fact]
+    public async Task Delete_DosVeces_LaSegundaDevuelve404()
+    {
+        var created = await CreateTaskAsync("Borrar dos veces");
+
+        await _client.DeleteAsync($"{BaseUrl}/{created.Id}");
+        var secondResponse = await _client.DeleteAsync($"{BaseUrl}/{created.Id}");
+
+        await AssertNotFoundProblemAsync(secondResponse, created.Id);
+    }
+
     // ---------- Ayudantes ----------
+
+    // Crea una tarea por la API y devuelve lo que respondió.
+    private async Task<TaskResponse> CreateTaskAsync(string title, string? description = null)
+    {
+        var response = await _client.PostAsJsonAsync(BaseUrl, new CreateTaskRequest { Title = title, Description = description });
+        response.EnsureSuccessStatusCode();
+
+        var created = await response.Content.ReadFromJsonAsync<TaskResponse>();
+        return created!;
+    }
+
+    // Revisa que la respuesta sea un 404 en formato ProblemDetails para el id indicado.
+    private static async Task AssertNotFoundProblemAsync(HttpResponseMessage response, int id)
+    {
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(404, body.RootElement.GetProperty("status").GetInt32());
+        Assert.Equal("Tarea no encontrada", body.RootElement.GetProperty("title").GetString());
+        Assert.Contains(id.ToString(), body.RootElement.GetProperty("detail").GetString());
+    }
 
     // Envía un texto tal cual como JSON (sirve para mandar JSON incompleto o mal escrito).
     private Task<HttpResponseMessage> PostRawJsonAsync(string json)
