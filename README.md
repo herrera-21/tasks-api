@@ -10,6 +10,14 @@ API REST para gestionar tareas (crear, listar, ver, actualizar y borrar), hecha 
 - **xUnit**: pruebas unitarias y de integración.
 - **Docker** y **GitHub Actions** con Semgrep y Trivy.
 
+## ¿Por qué .NET?
+
+- **Trae casi todo lo necesario**: validación de datos, manejo de errores con ProblemDetails, inyección de dependencias y Swagger vienen integrados o con un solo paquete. Hay menos código propio que mantener.
+- **Tipado fuerte**: muchos errores aparecen al compilar y no cuando la API ya está corriendo.
+- **Separación en capas sencilla**: la inyección de dependencias facilita separar controlador, servicio y repositorio, y probar cada parte por separado.
+- **Pruebas fáciles**: `WebApplicationFactory` levanta la API completa en memoria para las pruebas de integración, sin necesidad de un servidor.
+- **Versión LTS**: .NET 10 tiene soporte a largo plazo de Microsoft y se usa mucho en el sector financiero.
+
 ## Estructura
 
 ```
