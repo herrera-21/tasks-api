@@ -1,13 +1,14 @@
 name: CI
 
-# Solo corre cuando se abre o actualiza un PR hacia main o dev.
+# Corre en cada push (cualquier rama) y en cada PR hacia main o dev.
 on:
+  push:
   pull_request:
     branches: [main, dev]
 
-# Si se sube otro commit al mismo PR, cancela la ejecución anterior.
+# Si se sube otro commit a la misma rama o PR, cancela la ejecución anterior.
 concurrency:
-  group: ci-${{ github.event.pull_request.number }}
+  group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:

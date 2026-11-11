@@ -67,9 +67,12 @@ dotnet test
 POST /api/tasks
 {
   "title": "Comprar café",
-  "description": "Para la oficina"
+  "description": "Para la oficina",
+  "isCompleted": false
 }
 ```
+
+Solo `title` es obligatorio. Si no se manda `isCompleted`, la tarea empieza pendiente (`false`).
 
 Respuesta `201 Created`:
 
@@ -106,11 +109,13 @@ PUT /api/tasks/1
 }
 ```
 
+Si no se manda body, el JSON está mal escrito o un campo trae un tipo incorrecto, el error aparece en `errors.body` o en el campo correspondiente.
+
 Reglas: el título es obligatorio (máximo 200 caracteres), la descripción es opcional (máximo 1000) y las fechas están en UTC.
 
 ## CI
 
-En cada PR hacia `main` o `dev`, GitHub Actions:
+En cada push y en cada PR hacia `main` o `dev`, GitHub Actions:
 
 1. Compila y corre las pruebas.
 2. Analiza el código con **Semgrep** (C#, Dockerfile y secretos).

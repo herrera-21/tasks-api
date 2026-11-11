@@ -161,6 +161,67 @@ public class TasksEndpointsTests : IDisposable
         Assert.Empty(tasks);
     }
 
+    [Fact]
+    public async Task Post_ConIsCompletedTrue_CreaLaTareaCompletada()
+    {
+        var request = new CreateTaskRequest { Title = "Ya hecha", IsCompleted = true };
+
+        var response = await _client.PostAsJsonAsync(BaseUrl, request);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var created = await response.Content.ReadFromJsonAsync<TaskResponse>();
+        Assert.NotNull(created);
+        Assert.True(created.IsCompleted);
+
+        var fetched = await _client.GetFromJsonAsync<TaskResponse>($"{BaseUrl}/{created.Id}");
+        Assert.True(fetched!.IsCompleted);
+    }
+
+    // ---------- Mensajes de error claros (en español y sin nombres internos) ----------
+
+    [Fact]
+    public async Task Post_SinBody_Devuelve400ConMensajeEnBody()
+    {
+        var response = await PostRawJsonAsync("");
+
+        var errors = await AssertValidationProblemAsync(response);
+        Assert.Equal("El cuerpo de la petición es obligatorio y debe ser un JSON.", GetFirstError(errors, "body"));
+    }
+
+    [Theory]
+    [InlineData("""{ "title": "sin cerrar" """)] // JSON incompleto
+    [InlineData("""[1, 2]""")]                   // no es un objeto
+    public async Task Post_ConJsonInvalido_Devuelve400ConMensajeEnBody(string json)
+    {
+        var response = await PostRawJsonAsync(json);
+
+        var errors = await AssertValidationProblemAsync(response);
+        Assert.StartsWith("El JSON no es válido.", GetFirstError(errors, "body"));
+    }
+
+    [Fact]
+    public async Task Post_ConTituloDeTipoIncorrecto_Devuelve400SinNombresInternos()
+    {
+        var response = await PostRawJsonAsync("""{ "title": 123 }""");
+
+        var errors = await AssertValidationProblemAsync(response);
+        var message = GetFirstError(errors, "Title");
+        Assert.Equal("El valor de 'title' no tiene el tipo correcto.", message);
+        Assert.DoesNotContain("System.", message);
+    }
+
+    [Fact]
+    public async Task Put_ConIsCompletedDeTipoIncorrecto_Devuelve400ConErrorEnIsCompleted()
+    {
+        var created = await CreateTaskAsync("Válido");
+        var content = new StringContent("""{ "title": "x", "isCompleted": "abc" }""", Encoding.UTF8, "application/json");
+
+        var response = await _client.PutAsync($"{BaseUrl}/{created.Id}", content);
+
+        var errors = await AssertValidationProblemAsync(response);
+        Assert.Equal("El valor de 'isCompleted' no tiene el tipo correcto.", GetFirstError(errors, "IsCompleted"));
+    }
+
     // ---------- No encontrado (404) ----------
 
     [Fact]
@@ -373,6 +434,13 @@ public class TasksEndpointsTests : IDisposable
 
         var created = await response.Content.ReadFromJsonAsync<TaskResponse>();
         return created!;
+    }
+
+    // Devuelve el primer mensaje de error de un campo.
+    private static string GetFirstError(JsonElement errors, string field)
+    {
+        Assert.True(errors.TryGetProperty(field, out var messages), $"Se esperaba un error en el campo {field}.");
+        return messages[0].GetString()!;
     }
 
     // Revisa que la respuesta sea un 404 en formato ProblemDetails para el id indicado.

@@ -55,6 +55,15 @@ public class TaskServiceTests
     }
 
     [Fact]
+    public async Task CreateAsync_ConIsCompletedTrue_LaGuardaComoCompletada()
+    {
+        var created = await _service.CreateAsync(new CreateTaskRequest { Title = "Ya hecha", IsCompleted = true });
+
+        Assert.True(created.IsCompleted);
+        Assert.True(_repository.Tasks.Single().IsCompleted);
+    }
+
+    [Fact]
     public async Task CreateAsync_PoneLaFechaDeCreacionActualEnUtc()
     {
         var before = DateTime.UtcNow;
