@@ -117,3 +117,8 @@ En cada PR hacia `main` o `dev`, GitHub Actions:
 3. Construye la imagen Docker, prueba que la API responda y la revisa con **Trivy** (vulnerabilidades HIGH y CRITICAL).
 
 Los resultados de Semgrep y Trivy se ven en la pestaña **Security** del repositorio.
+
+**¿Qué son?**
+
+- **Semgrep**: revisa el código fuente buscando errores de seguridad comunes (por ejemplo, contraseñas escritas en el código o malas prácticas en el Dockerfile), sin necesidad de ejecutarlo.
+- **Trivy**: revisa la imagen Docker ya construida y avisa si el sistema operativo o las librerías que trae tienen vulnerabilidades conocidas. Solo falla si existe una versión que ya las corrige.
