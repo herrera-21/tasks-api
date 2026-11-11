@@ -1,6 +1,5 @@
 using System.Reflection;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi;
 using TasksApi.Data;
@@ -31,21 +30,7 @@ builder.Services.AddControllers(options =>
     .ConfigureApiBehaviorOptions(options =>
     {
         // Respuesta 400 cuando los datos no pasan la validación o el JSON no se puede leer.
-        options.InvalidModelStateResponseFactory = context =>
-        {
-            var factory = context.HttpContext.RequestServices.GetRequiredService<ProblemDetailsFactory>();
-            var problem = factory.CreateValidationProblemDetails(
-                context.HttpContext,
-                context.ModelState,
-                statusCode: StatusCodes.Status400BadRequest,
-                title: "Uno o más datos no son válidos.",
-                detail: "Revisa el campo 'errors' para ver qué corregir.");
-
-            return new BadRequestObjectResult(problem)
-            {
-                ContentTypes = { "application/problem+json" },
-            };
-        };
+        options.InvalidModelStateResponseFactory = InvalidRequestResponseFactory.Create;
     });
 
 // Documentación de la API (Swagger / OpenAPI).

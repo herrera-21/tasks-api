@@ -64,7 +64,7 @@ public class TasksController : ControllerBase
     /// Crea una tarea nueva.
     /// </summary>
     /// <remarks>
-    /// La tarea nueva siempre empieza pendiente (<c>isCompleted = false</c>).
+    /// Solo <c>title</c> es obligatorio. Si no se manda <c>isCompleted</c>, la tarea empieza pendiente (<c>false</c>).
     /// Al título y la descripción se les quitan los espacios sobrantes.
     ///
     /// Ejemplo:
@@ -72,7 +72,8 @@ public class TasksController : ControllerBase
     ///     POST /api/tasks
     ///     {
     ///       "title": "Comprar café",
-    ///       "description": "Para la oficina"
+    ///       "description": "Para la oficina",
+    ///       "isCompleted": false
     ///     }
     /// </remarks>
     /// <param name="request">Datos de la tarea a crear.</param>

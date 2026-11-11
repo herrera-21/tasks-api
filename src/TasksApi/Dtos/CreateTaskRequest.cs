@@ -22,4 +22,10 @@ public class CreateTaskRequest
     /// <example>Para la oficina</example>
     [StringLength(1000, ErrorMessage = "La descripción no puede tener más de 1000 caracteres.")]
     public string? Description { get; set; }
+
+    /// <summary>
+    /// Indica si la tarea ya está completada. Opcional: si no se manda, la tarea empieza pendiente (false).
+    /// </summary>
+    /// <example>false</example>
+    public bool IsCompleted { get; set; }
 }

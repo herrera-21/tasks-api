@@ -24,7 +24,7 @@ public class TaskService(ITaskRepository repository) : ITaskService
         {
             Title = request.Title.Trim(),
             Description = CleanDescription(request.Description),
-            IsCompleted = false, // Toda tarea nueva empieza pendiente.
+            IsCompleted = request.IsCompleted, // Si el cliente no lo manda, llega como false (pendiente).
             CreatedAt = DateTime.UtcNow,
         };
 
