@@ -1,0 +1,137 @@
+name: CI
+
+# Solo corre cuando se abre o actualiza un PR hacia main o dev.
+on:
+  pull_request:
+    branches: [main, dev]
+
+# Si se sube otro commit al mismo PR, cancela la ejecución anterior.
+concurrency:
+  group: ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    name: Build y pruebas
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Pruebas
+        run: dotnet test --configuration Release --no-build --logger trx --results-directory TestResults
+
+      - name: Guardar resultados de las pruebas
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: TestResults
+
+  semgrep:
+    name: Análisis de código (Semgrep)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write # para subir los resultados a la pestaña Security
+    container:
+      image: semgrep/semgrep:1.179.0
+    steps:
+      - uses: actions/checkout@v5
+
+      # Falla si encuentra problemas en el código C#, el Dockerfile o secretos expuestos.
+      - name: Semgrep
+        run: >
+          semgrep scan
+          --config p/csharp
+          --config p/dockerfile
+          --config p/secrets
+          --metrics=off
+          --sarif-output=semgrep.sarif
+          --error
+
+      - name: Subir resultados a GitHub
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep
+
+  docker:
+    name: Imagen Docker y Trivy
+    runs-on: ubuntu-latest
+    needs: build-test
+    permissions:
+      contents: read
+      security-events: write # para subir los resultados a la pestaña Security
+    env:
+      IMAGE: tasks-api:ci
+      TRIVY_IMAGE: aquasec/trivy:0.76.1
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Construir imagen
+        run: docker build -t "$IMAGE" .
+
+      # Levanta el contenedor y revisa que la API responda.
+      - name: Probar el contenedor
+        run: |
+          docker run -d --name tasks-api -p 8080:8080 "$IMAGE"
+          for _ in $(seq 1 30); do
+            curl -sf http://localhost:8080/api/tasks > /dev/null && break
+            sleep 1
+          done
+          curl -sf http://localhost:8080/api/tasks
+          curl -sf -X POST http://localhost:8080/api/tasks \
+            -H "Content-Type: application/json" \
+            -d '{"title":"Prueba desde CI"}'
+          curl -sf -o /dev/null http://localhost:8080/swagger/v1/swagger.json
+
+      - name: Logs del contenedor
+        if: always()
+        run: docker logs tasks-api || true
+
+      # Falla si la imagen tiene vulnerabilidades HIGH o CRITICAL que ya tengan solución.
+      - name: Trivy
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            "$TRIVY_IMAGE" image \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed \
+            --exit-code 1 \
+            --no-progress \
+            "$IMAGE"
+
+      - name: Generar reporte de Trivy para GitHub
+        if: always()
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$PWD:/out" \
+            "$TRIVY_IMAGE" image \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed \
+            --format sarif \
+            --output /out/trivy.sarif \
+            --no-progress \
+            "$IMAGE"
+
+      - name: Subir resultados a GitHub
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy.sarif
+          category: trivy
