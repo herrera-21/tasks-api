@@ -92,7 +92,12 @@ app.UseSwaggerUI(options =>
 // Entrar a la raíz (/) lleva directo a Swagger.
 app.MapGet("/", () => Results.Redirect("/swagger")).ExcludeFromDescription();
 
-app.UseHttpsRedirection();
+// Pasar de http a https solo en tu máquina.
+// Dentro de Docker la API solo usa http (puerto 8080), así que ahí no aplica.
+if (app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 
 app.UseAuthorization();
 

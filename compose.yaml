@@ -1,0 +1,14 @@
+services:
+  api:
+    build: .
+    image: tasks-api
+    container_name: tasks-api
+    ports:
+      - "8080:8080"
+    volumes:
+      # Las tareas se guardan aquí y no se pierden al borrar el contenedor.
+      - tasks-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  tasks-data:

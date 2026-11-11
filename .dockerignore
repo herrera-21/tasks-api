@@ -1,0 +1,31 @@
+# Lo que no se manda a Docker al construir la imagen.
+# Así el build es más rápido y no se cuelan archivos locales.
+
+# Compilados locales (Docker compila todo de nuevo)
+**/bin/
+**/obj/
+
+# Bases de datos locales
+**/*.db
+**/*.db-shm
+**/*.db-wal
+
+# Pruebas (se corren en CI, no van en la imagen)
+tests/
+
+# Git, editores y herramientas
+.git/
+.gitignore
+.github/
+.vs/
+.vscode/
+.idea/
+**/*.user
+**/*.suo
+
+# Archivos que no hacen falta para compilar
+**/*.http
+*.md
+Dockerfile
+compose.yaml
+.dockerignore
